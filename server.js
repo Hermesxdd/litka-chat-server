@@ -74,9 +74,9 @@ wss.on('connection', (ws) => {
             
             switch(message.type) {
                 case 'join':
-                    username = message.username;
+                    const nickname = message.nickname || message.username;
                     
-                    if (!username || username.length < 1 || username.length > 16) {
+                    if (!nickname || nickname.length < 1 || nickname.length > 16) {
                         ws.send(JSON.stringify({
                             type: 'error',
                             message: 'Неверное имя пользователя'
@@ -84,6 +84,7 @@ wss.on('connection', (ws) => {
                         return;
                     }
                     
+                    username = nickname;
                     clients.set(ws, { username });
                     
                     ws.send(JSON.stringify({
