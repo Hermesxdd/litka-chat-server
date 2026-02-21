@@ -104,7 +104,7 @@ wss.on('connection', (ws) => {
                     if (!username) {
                         ws.send(JSON.stringify({
                             type: 'error',
-                            message: 'Необходимо указать имя пользователя'
+                            message: 'DEBUG: Username not set on server'
                         }));
                         return;
                     }
