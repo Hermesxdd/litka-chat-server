@@ -2,8 +2,6 @@ const WebSocket = require('ws');
 const express = require('express');
 const http = require('http');
 const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,21 +17,6 @@ const SPAM_THRESHOLD = 3;
 const SPAM_TIME_WINDOW = 10000;
 const MUTE_DURATION = 20 * 60 * 1000;
 
-const DATA_DIR = './data';
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR);
-}
-
-function loadData() {
-    // No data to load anymore
-}
-
-function saveData() {
-    // No data to save anymore
-}
-
-loadData();
-
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -47,30 +30,12 @@ app.get('/stats', (req, res) => {
     });
 });
 
-app.post('/admin/rank', (req, res) => {
-    const { adminKey, hwid, rank } = req.body;
-    
-    if (adminKey !== process.env.ADMIN_KEY && adminKey !== 'litka-admin-2024') {
-        return res.status(403).json({ error: 'Invalid admin key' });
-    }
-    
-    if (!hwid || !rank) {
-        return res.status(400).json({ error: 'Missing hwid or rank' });
-    }
-    
-    specialRanks.set(hwid, rank);
-    saveData();
-    
-    res.json({ success: true, message: `Rank ${rank} assigned to ${hwid}` });
-});
-
 wss.on('connection', (ws) => {
     let username = null;
     
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
-            console.log('Received message:', message.type, message);
             
             switch(message.type) {
                 case 'join':
@@ -104,7 +69,7 @@ wss.on('connection', (ws) => {
                     if (!username) {
                         ws.send(JSON.stringify({
                             type: 'error',
-                            message: 'DEBUG: Username not set on server'
+                            message: 'Необходимо указать имя пользователя'
                         }));
                         return;
                     }
@@ -178,108 +143,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-function handleCustomCommand(ws, username, cmd, args) {
-    const profile = userProfiles.get(username);
-    
-    switch(cmd) {
-        case 'bracket':
-            if (args[0]) {
-                const styles = ['[]', '()', '{}', '<>', '||', '««»»'];
-                if (styles.includes(args[0])) {
-                    profile.bracketStyle = args[0];
-                    saveData();
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Стиль скобок изменен на ${args[0]}`
-                    }));
-                }
-            }
-            break;
-            
-        case 'bracketcolor':
-            if (args[0]) {
-                const colors = ['§0', '§1', '§2', '§3', '§4', '§5', '§6', '§7', '§8', '§9', '§a', '§b', '§c', '§d', '§e', '§f'];
-                if (colors.includes(args[0])) {
-                    profile.bracketColor = args[0];
-                    saveData();
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Цвет скобок изменен`
-                    }));
-                }
-            }
-            break;
-            
-        case 'messagecolor':
-            if (args[0]) {
-                const colors = ['§0', '§1', '§2', '§3', '§4', '§5', '§6', '§7', '§8', '§9', '§a', '§b', '§c', '§d', '§e', '§f'];
-                if (colors.includes(args[0])) {
-                    profile.messageColor = args[0];
-                    saveData();
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Цвет сообщений изменен`
-                    }));
-                }
-            }
-            break;
-            
-        case 'prefix':
-            const action = args[0];
-            if (action === 'add' && args[1]) {
-                const prefix = args[1].substring(0, 6);
-                if (!profile.customPrefixes) profile.customPrefixes = [];
-                if (profile.customPrefixes.length < 5) {
-                    profile.customPrefixes.push(prefix);
-                    saveData();
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Префикс "${prefix}" добавлен`
-                    }));
-                } else {
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Максимум 5 префиксов`
-                    }));
-                }
-            } else if (action === 'remove' && args[1]) {
-                const index = parseInt(args[1]) - 1;
-                if (profile.customPrefixes && profile.customPrefixes[index]) {
-                    profile.customPrefixes.splice(index, 1);
-                    saveData();
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Префикс удален`
-                    }));
-                }
-            } else if (action === 'list') {
-                const list = profile.customPrefixes || [];
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: `Ваши префиксы: ${list.join(', ') || 'нет'}`
-                }));
-            } else if (action === 'select' && args[1]) {
-                const index = parseInt(args[1]) - 1;
-                if (profile.customPrefixes && profile.customPrefixes[index]) {
-                    profile.selectedPrefix = profile.customPrefixes[index];
-                    saveData();
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `Префикс "${profile.selectedPrefix}" выбран`
-                    }));
-                }
-            }
-            break;
-            
-        case 'help':
-            ws.send(JSON.stringify({
-                type: 'custom_response',
-                message: `Команды: @custom bracket []/(){}/etc, @custom bracketcolor §X, @custom messagecolor §X, @custom prefix add/remove/list/select`
-            }));
-            break;
-    }
-}
-
 function isUserMuted(username) {
     if (!mutedUsers.has(username)) return false;
     
@@ -314,8 +177,6 @@ function checkSpam(username, message) {
             type: 'message',
             username: 'Система',
             message: `§c${username} был заглушен на 20 минут за спам`,
-            profile: null,
-            specialRank: 'Система',
             timestamp: now
         });
         
@@ -339,7 +200,6 @@ function handleMsgCommand(ws, username, messageText) {
     const targetUser = args[1];
     const pmMessage = args.slice(2).join(' ');
     
-    // Find target client
     const targetClient = Array.from(clients.entries()).find(([client, data]) => data.username === targetUser);
     if (!targetClient) {
         ws.send(JSON.stringify({
@@ -349,13 +209,11 @@ function handleMsgCommand(ws, username, messageText) {
         return;
     }
     
-    // Send to target
     targetClient[0].send(JSON.stringify({
         type: 'custom_response',
         message: `§d[ЛС от ${username}]: §f${pmMessage}`
     }));
     
-    // Confirm to sender
     ws.send(JSON.stringify({
         type: 'custom_response',
         message: `§d[ЛС для ${targetUser}]: §f${pmMessage}`
