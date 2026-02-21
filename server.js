@@ -128,7 +128,6 @@ function hashPassword(password) {
 function generateSessionToken() {
     return crypto.randomBytes(32).toString('hex');
 }
-});
 
 wss.on('connection', (ws) => {
     let username = null;
