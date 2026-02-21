@@ -13,22 +13,11 @@ const clients = new Map();
 const messageHistory = [];
 const MAX_HISTORY = 100;
 
-const userProfiles = new Map();
-const adminHWIDs = new Set(['admin-hwid-1']);
-const specialRanks = new Map();
-
-const registeredUsers = new Map();
-const userSessions = new Map();
-
 const userMessageHistory = new Map();
 const mutedUsers = new Map();
 const SPAM_THRESHOLD = 3;
 const SPAM_TIME_WINDOW = 10000;
 const MUTE_DURATION = 20 * 60 * 1000;
-
-const developerUsers = new Set(['Hermesxdd', 'fomivik']);
-const userPrefixes = new Map();
-const privateMessagesEnabled = new Map();
 
 const DATA_DIR = './data';
 if (!fs.existsSync(DATA_DIR)) {
@@ -36,95 +25,14 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 function loadData() {
-    try {
-        if (fs.existsSync(path.join(DATA_DIR, 'profiles.json'))) {
-            const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'profiles.json'), 'utf8'));
-            Object.entries(data).forEach(([username, profile]) => userProfiles.set(username, profile));
-        }
-        if (fs.existsSync(path.join(DATA_DIR, 'ranks.json'))) {
-            const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'ranks.json'), 'utf8'));
-            Object.entries(data).forEach(([username, rank]) => specialRanks.set(username, rank));
-        }
-        if (fs.existsSync(path.join(DATA_DIR, 'users.json'))) {
-            const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'users.json'), 'utf8'));
-            Object.entries(data).forEach(([username, userData]) => registeredUsers.set(username, userData));
-        }
-        if (fs.existsSync(path.join(DATA_DIR, 'prefixes.json'))) {
-            const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'prefixes.json'), 'utf8'));
-            Object.entries(data).forEach(([username, prefix]) => userPrefixes.set(username, prefix));
-        }
-        if (fs.existsSync(path.join(DATA_DIR, 'pm_settings.json'))) {
-            const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'pm_settings.json'), 'utf8'));
-            Object.entries(data).forEach(([username, enabled]) => privateMessagesEnabled.set(username, enabled));
-        }
-    } catch (e) {
-        console.error('Error loading data:', e);
-    }
+    // No data to load anymore
 }
 
 function saveData() {
-    try {
-        fs.writeFileSync(
-            path.join(DATA_DIR, 'profiles.json'),
-            JSON.stringify(Object.fromEntries(userProfiles))
-        );
-        fs.writeFileSync(
-            path.join(DATA_DIR, 'ranks.json'),
-            JSON.stringify(Object.fromEntries(specialRanks))
-        );
-        fs.writeFileSync(
-            path.join(DATA_DIR, 'users.json'),
-            JSON.stringify(Object.fromEntries(registeredUsers))
-        );
-        fs.writeFileSync(
-            path.join(DATA_DIR, 'prefixes.json'),
-            JSON.stringify(Object.fromEntries(userPrefixes))
-        );
-        fs.writeFileSync(
-            path.join(DATA_DIR, 'pm_settings.json'),
-            JSON.stringify(Object.fromEntries(privateMessagesEnabled))
-        );
-    } catch (e) {
-        console.error('Error saving data:', e);
-    }
+    // No data to save anymore
 }
 
 loadData();
-
-// Pre-register developer accounts with complex passwords
-function initDeveloperAccounts() {
-    const devAccounts = {
-        'Hermesxdd': 'K9#mX7$vL2@nQ4&wE8!pR6^tY3*uI5%oA1',
-        'fomivik': 'Z8@hB4#nM9$xC6&vL2!qW7^eR5*tY3%uI1'
-    };
-    
-    for (const [username, password] of Object.entries(devAccounts)) {
-        if (!registeredUsers.has(username)) {
-            const hashedPassword = hashPassword(password);
-            registeredUsers.set(username, {
-                password: hashedPassword,
-                registeredAt: Date.now()
-            });
-            
-            if (!userProfiles.has(username)) {
-                userProfiles.set(username, {
-                    bracketStyle: '[]',
-                    bracketColor: '§7',
-                    messageColor: '§f',
-                    customPrefixes: []
-                });
-            }
-            
-            specialRanks.set(username, 'Developer');
-            privateMessagesEnabled.set(username, true);
-            
-            console.log(`Pre-registered developer account: ${username}`);
-        }
-    }
-    saveData();
-}
-
-initDeveloperAccounts();
 
 app.use(express.json());
 
@@ -156,17 +64,8 @@ app.post('/admin/rank', (req, res) => {
     res.json({ success: true, message: `Rank ${rank} assigned to ${hwid}` });
 });
 
-function hashPassword(password) {
-    return crypto.createHash('sha256').update(password).digest('hex');
-}
-
-function generateSessionToken() {
-    return crypto.randomBytes(32).toString('hex');
-}
-
 wss.on('connection', (ws) => {
     let username = null;
-    let sessionToken = null;
     
     ws.on('message', (data) => {
         try {
@@ -174,157 +73,37 @@ wss.on('connection', (ws) => {
             console.log('Received message:', message.type, message);
             
             switch(message.type) {
-                case 'register':
-                    const { regUsername, regPassword } = message;
-                    console.log('Registration attempt:', regUsername);
-                    
-                    if (!regUsername || !regPassword) {
-                        console.log('Missing username or password');
-                        ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Имя пользователя и пароль обязательны'
-                        }));
-                        return;
-                    }
-                    
-                    if (regUsername.length < 3 || regUsername.length > 16) {
-                        console.log('Invalid username length:', regUsername.length);
-                        ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Имя пользователя должно быть от 3 до 16 символов'
-                        }));
-                        return;
-                    }
-                    
-                    if (registeredUsers.has(regUsername)) {
-                        console.log('User already exists:', regUsername);
-                        ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Пользователь уже существует'
-                        }));
-                        return;
-                    }
-                    
-                    console.log('Creating new user:', regUsername);
-                    const hashedPassword = hashPassword(regPassword);
-                    registeredUsers.set(regUsername, {
-                        password: hashedPassword,
-                        registeredAt: Date.now()
-                    });
-                    
-                    if (!userProfiles.has(regUsername)) {
-                        userProfiles.set(regUsername, {
-                            bracketStyle: '[]',
-                            bracketColor: '§7',
-                            messageColor: '§f',
-                            customPrefixes: []
-                        });
-                    }
-                    
-                    if (developerUsers.has(regUsername)) {
-                        specialRanks.set(regUsername, 'Developer');
-                    }
-                    
-                    privateMessagesEnabled.set(regUsername, true);
-                    
-                    saveData();
-                    
-                    const token = generateSessionToken();
-                    userSessions.set(token, regUsername);
-                    username = regUsername;
-                    sessionToken = token;
-                    
-                    clients.set(ws, { username });
-                    
-                    console.log('Sending auth_success for:', regUsername);
-                    ws.send(JSON.stringify({
-                        type: 'auth_success',
-                        username: regUsername,
-                        sessionToken: token
-                    }));
-                    
-                    console.log(`${regUsername} registered and joined. Online: ${clients.size}`);
-                    break;
-                    
-                case 'login':
-                    const { loginUsername, loginPassword } = message;
-                    
-                    if (!registeredUsers.has(loginUsername)) {
-                        ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Пользователь не найден'
-                        }));
-                        return;
-                    }
-                    
-                    const userData = registeredUsers.get(loginUsername);
-                    const inputHash = hashPassword(loginPassword);
-                    
-                    if (userData.password !== inputHash) {
-                        ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Неверный пароль'
-                        }));
-                        return;
-                    }
-                    
-                    const loginToken = generateSessionToken();
-                    userSessions.set(loginToken, loginUsername);
-                    username = loginUsername;
-                    sessionToken = loginToken;
-                    
-                    clients.set(ws, { username });
-                    
-                    if (developerUsers.has(loginUsername) && !specialRanks.has(loginUsername)) {
-                        specialRanks.set(loginUsername, 'Developer');
-                        saveData();
-                    }
-                    
-                    if (!privateMessagesEnabled.has(loginUsername)) {
-                        privateMessagesEnabled.set(loginUsername, true);
-                        saveData();
-                    }
-                    
-                    ws.send(JSON.stringify({
-                        type: 'auth_success',
-                        username: loginUsername,
-                        sessionToken: loginToken
-                    }));
-                    
-                    console.log(`${loginUsername} logged in. Online: ${clients.size}`);
-                    break;
-                    
                 case 'join':
-                    if (!username) {
+                    username = message.username;
+                    
+                    if (!username || username.length < 1 || username.length > 16) {
                         ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Необходима авторизация'
+                            type: 'error',
+                            message: 'Неверное имя пользователя'
                         }));
                         return;
                     }
+                    
+                    clients.set(ws, { username });
                     
                     ws.send(JSON.stringify({
                         type: 'history',
                         messages: messageHistory
                     }));
                     
-                    ws.send(JSON.stringify({
-                        type: 'profile',
-                        profile: userProfiles.get(username),
-                        specialRank: specialRanks.get(username) || null
-                    }));
-                    
                     broadcast({
                         type: 'online',
                         count: clients.size
                     });
+                    
+                    console.log(`${username} joined. Online: ${clients.size}`);
                     break;
                     
                 case 'message':
                     if (!username) {
                         ws.send(JSON.stringify({
-                            type: 'auth_error',
-                            message: 'Необходима авторизация'
+                            type: 'error',
+                            message: 'Необходимо указать имя пользователя'
                         }));
                         return;
                     }
@@ -341,8 +120,13 @@ wss.on('connection', (ws) => {
                     
                     const messageText = message.message.trim();
                     
-                    if (messageText.startsWith('@')) {
-                        handleAdminCommand(ws, username, messageText);
+                    if (messageText.startsWith('@msg')) {
+                        handleMsgCommand(ws, username, messageText);
+                        return;
+                    }
+                    
+                    if (messageText.startsWith('@to')) {
+                        handleToCommand(ws, username, messageText);
                         return;
                     }
                     
@@ -354,20 +138,10 @@ wss.on('connection', (ws) => {
                         return;
                     }
                     
-                    const profile = userProfiles.get(username);
-                    let displayRank = specialRanks.get(username);
-                    
-                    if (userPrefixes.has(username)) {
-                        const customPrefix = userPrefixes.get(username);
-                        displayRank = displayRank ? `${displayRank}|${customPrefix.name}` : customPrefix.name;
-                    }
-                    
                     const chatMessage = {
                         type: 'message',
                         username: username,
                         message: messageText,
-                        profile: profile,
-                        specialRank: displayRank,
                         timestamp: Date.now()
                     };
                     
@@ -379,15 +153,6 @@ wss.on('connection', (ws) => {
                     broadcast(chatMessage);
                     console.log(`${username}: ${messageText}`);
                     break;
-                    
-                case 'custom':
-                    if (!username) return;
-                    
-                    const cmd = message.command;
-                    const args = message.args || [];
-                    
-                    handleCustomCommand(ws, username, cmd, args);
-                    break;
             }
         } catch (e) {
             console.error('Error parsing message:', e);
@@ -397,9 +162,6 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         if (username) {
             clients.delete(ws);
-            if (sessionToken) {
-                userSessions.delete(sessionToken);
-            }
             
             broadcast({
                 type: 'online',
@@ -562,274 +324,70 @@ function checkSpam(username, message) {
     return false;
 }
 
-function handleAdminCommand(ws, username, messageText) {
-    const args = messageText.substring(1).split(' ');
-    const command = args[0].toLowerCase();
+function handleMsgCommand(ws, username, messageText) {
+    const args = messageText.split(' ');
     
-    switch (command) {
-        case 'mute':
-            if (!developerUsers.has(username)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cНедостаточно прав'
-                }));
-                return;
-            }
-            
-            if (args.length < 3) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cИспользование: @mute <логин> <время в секундах>'
-                }));
-                return;
-            }
-            
-            const muteTarget = args[1];
-            const muteTime = parseInt(args[2]) * 1000;
-            
-            if (!registeredUsers.has(muteTarget)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cПользователь не найден'
-                }));
-                return;
-            }
-            
-            mutedUsers.set(muteTarget, Date.now() + muteTime);
-            
-            broadcast({
-                type: 'message',
-                username: 'Система',
-                message: `§c${muteTarget} был заглушен на ${args[2]} секунд администратором ${username}`,
-                profile: null,
-                specialRank: 'Система',
-                timestamp: Date.now()
-            });
-            break;
-            
-        case 'unmute':
-            if (!developerUsers.has(username)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cНедостаточно прав'
-                }));
-                return;
-            }
-            
-            if (args.length < 2) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cИспользование: @unmute <логин>'
-                }));
-                return;
-            }
-            
-            const unmuteTarget = args[1];
-            
-            if (mutedUsers.has(unmuteTarget)) {
-                mutedUsers.delete(unmuteTarget);
-                
-                broadcast({
-                    type: 'message',
-                    username: 'Система',
-                    message: `§a${unmuteTarget} был размучен администратором ${username}`,
-                    profile: null,
-                    specialRank: 'Система',
-                    timestamp: Date.now()
-                });
-            } else {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cПользователь не заглушен'
-                }));
-            }
-            break;
-            
-        case 'prefix':
-            if (!developerUsers.has(username)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cНедостаточно прав'
-                }));
-                return;
-            }
-            
-            const prefixAction = args[1];
-            
-            if (prefixAction === 'add') {
-                if (args.length < 5) {
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: '§cИспользование: @prefix add <логин> <префикс> <цвет>'
-                    }));
-                    return;
-                }
-                
-                const targetUser = args[2];
-                const prefixName = args[3];
-                const prefixColor = args[4];
-                
-                if (!registeredUsers.has(targetUser)) {
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: '§cПользователь не найден'
-                    }));
-                    return;
-                }
-                
-                userPrefixes.set(targetUser, {
-                    name: prefixName,
-                    color: prefixColor
-                });
-                
-                saveData();
-                
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: `§aПрефикс ${prefixColor}${prefixName}§a выдан пользователю ${targetUser}`
-                }));
-                
-            } else if (prefixAction === 'dell') {
-                if (args.length < 3) {
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: '§cИспользование: @prefix dell <логин>'
-                    }));
-                    return;
-                }
-                
-                const targetUser = args[2];
-                
-                if (userPrefixes.has(targetUser)) {
-                    userPrefixes.delete(targetUser);
-                    saveData();
-                    
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: `§aПрефикс удален у пользователя ${targetUser}`
-                    }));
-                } else {
-                    ws.send(JSON.stringify({
-                        type: 'custom_response',
-                        message: '§cУ пользователя нет префикса'
-                    }));
-                }
-            }
-            break;
-            
-        case 'msg':
-            if (args.length < 3) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cИспользование: @msg <ник> <текст> или @msg off/on'
-                }));
-                return;
-            }
-            
-            if (args[1] === 'off') {
-                privateMessagesEnabled.set(username, false);
-                saveData();
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cПрием личных сообщений отключен'
-                }));
-                return;
-            } else if (args[1] === 'on') {
-                privateMessagesEnabled.set(username, true);
-                saveData();
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§aПрием личных сообщений включен'
-                }));
-                return;
-            }
-            
-            const pmTarget = args[1];
-            const pmMessage = args.slice(2).join(' ');
-            
-            if (!registeredUsers.has(pmTarget)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cПользователь не найден'
-                }));
-                return;
-            }
-            
-            if (!privateMessagesEnabled.get(pmTarget)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cПользователь отключил прием личных сообщений'
-                }));
-                return;
-            }
-            
-            // Send to target
-            const targetClient = Array.from(clients.entries()).find(([client, data]) => data.username === pmTarget);
-            if (targetClient) {
-                targetClient[0].send(JSON.stringify({
-                    type: 'custom_response',
-                    message: `§d[ЛС от ${username}]: §f${pmMessage}`
-                }));
-            }
-            
-            // Confirm to sender
-            ws.send(JSON.stringify({
-                type: 'custom_response',
-                message: `§d[ЛС для ${pmTarget}]: §f${pmMessage}`
-            }));
-            break;
-            
-        case 'to':
-            if (args.length < 3) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cИспользование: @to <ник> <текст>'
-                }));
-                return;
-            }
-            
-            const mentionTarget = args[1];
-            const mentionMessage = args.slice(2).join(' ');
-            
-            if (!registeredUsers.has(mentionTarget)) {
-                ws.send(JSON.stringify({
-                    type: 'custom_response',
-                    message: '§cПользователь не найден'
-                }));
-                return;
-            }
-            
-            const profile = userProfiles.get(username);
-            let displayRank = specialRanks.get(username);
-            
-            if (userPrefixes.has(username)) {
-                const customPrefix = userPrefixes.get(username);
-                displayRank = displayRank ? `${displayRank}|${customPrefix.name}` : customPrefix.name;
-            }
-            
-            const mentionChatMessage = {
-                type: 'message',
-                username: username,
-                message: `§e@${mentionTarget} §f${mentionMessage}`,
-                profile: profile,
-                specialRank: displayRank,
-                timestamp: Date.now()
-            };
-            
-            messageHistory.push(mentionChatMessage);
-            if (messageHistory.length > MAX_HISTORY) {
-                messageHistory.shift();
-            }
-            
-            broadcast(mentionChatMessage);
-            break;
-            
-        default:
-            ws.send(JSON.stringify({
-                type: 'custom_response',
-                message: '§cНеизвестная команда. Доступные: @mute, @unmute, @prefix, @msg, @to'
-            }));
+    if (args.length < 3) {
+        ws.send(JSON.stringify({
+            type: 'custom_response',
+            message: '§cИспользование: @msg <ник> <текст>'
+        }));
+        return;
     }
+    
+    const targetUser = args[1];
+    const pmMessage = args.slice(2).join(' ');
+    
+    // Find target client
+    const targetClient = Array.from(clients.entries()).find(([client, data]) => data.username === targetUser);
+    if (!targetClient) {
+        ws.send(JSON.stringify({
+            type: 'custom_response',
+            message: '§cПользователь не найден или не в сети'
+        }));
+        return;
+    }
+    
+    // Send to target
+    targetClient[0].send(JSON.stringify({
+        type: 'custom_response',
+        message: `§d[ЛС от ${username}]: §f${pmMessage}`
+    }));
+    
+    // Confirm to sender
+    ws.send(JSON.stringify({
+        type: 'custom_response',
+        message: `§d[ЛС для ${targetUser}]: §f${pmMessage}`
+    }));
+}
+
+function handleToCommand(ws, username, messageText) {
+    const args = messageText.split(' ');
+    
+    if (args.length < 3) {
+        ws.send(JSON.stringify({
+            type: 'custom_response',
+            message: '§cИспользование: @to <ник> <текст>'
+        }));
+        return;
+    }
+    
+    const mentionTarget = args[1];
+    const mentionMessage = args.slice(2).join(' ');
+    
+    const chatMessage = {
+        type: 'message',
+        username: username,
+        message: `§e@${mentionTarget} §f${mentionMessage}`,
+        timestamp: Date.now()
+    };
+    
+    messageHistory.push(chatMessage);
+    if (messageHistory.length > MAX_HISTORY) {
+        messageHistory.shift();
+    }
+    
+    broadcast(chatMessage);
 }
 
 function broadcast(message) {
