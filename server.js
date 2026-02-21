@@ -171,12 +171,15 @@ wss.on('connection', (ws) => {
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
+            console.log('Received message:', message.type, message);
             
             switch(message.type) {
                 case 'register':
                     const { regUsername, regPassword } = message;
+                    console.log('Registration attempt:', regUsername);
                     
                     if (!regUsername || !regPassword) {
+                        console.log('Missing username or password');
                         ws.send(JSON.stringify({
                             type: 'auth_error',
                             message: 'Имя пользователя и пароль обязательны'
@@ -185,6 +188,7 @@ wss.on('connection', (ws) => {
                     }
                     
                     if (regUsername.length < 3 || regUsername.length > 16) {
+                        console.log('Invalid username length:', regUsername.length);
                         ws.send(JSON.stringify({
                             type: 'auth_error',
                             message: 'Имя пользователя должно быть от 3 до 16 символов'
@@ -193,6 +197,7 @@ wss.on('connection', (ws) => {
                     }
                     
                     if (registeredUsers.has(regUsername)) {
+                        console.log('User already exists:', regUsername);
                         ws.send(JSON.stringify({
                             type: 'auth_error',
                             message: 'Пользователь уже существует'
@@ -200,6 +205,7 @@ wss.on('connection', (ws) => {
                         return;
                     }
                     
+                    console.log('Creating new user:', regUsername);
                     const hashedPassword = hashPassword(regPassword);
                     registeredUsers.set(regUsername, {
                         password: hashedPassword,
@@ -230,6 +236,7 @@ wss.on('connection', (ws) => {
                     
                     clients.set(ws, { username });
                     
+                    console.log('Sending auth_success for:', regUsername);
                     ws.send(JSON.stringify({
                         type: 'auth_success',
                         username: regUsername,
