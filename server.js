@@ -91,6 +91,41 @@ function saveData() {
 
 loadData();
 
+// Pre-register developer accounts with complex passwords
+function initDeveloperAccounts() {
+    const devAccounts = {
+        'Hermesxdd': 'K9#mX7$vL2@nQ4&wE8!pR6^tY3*uI5%oA1',
+        'fomivik': 'Z8@hB4#nM9$xC6&vL2!qW7^eR5*tY3%uI1'
+    };
+    
+    for (const [username, password] of Object.entries(devAccounts)) {
+        if (!registeredUsers.has(username)) {
+            const hashedPassword = hashPassword(password);
+            registeredUsers.set(username, {
+                password: hashedPassword,
+                registeredAt: Date.now()
+            });
+            
+            if (!userProfiles.has(username)) {
+                userProfiles.set(username, {
+                    bracketStyle: '[]',
+                    bracketColor: '§7',
+                    messageColor: '§f',
+                    customPrefixes: []
+                });
+            }
+            
+            specialRanks.set(username, 'Developer');
+            privateMessagesEnabled.set(username, true);
+            
+            console.log(`Pre-registered developer account: ${username}`);
+        }
+    }
+    saveData();
+}
+
+initDeveloperAccounts();
+
 app.use(express.json());
 
 app.get('/', (req, res) => {
